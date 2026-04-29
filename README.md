@@ -25,7 +25,7 @@ The API starts on `http://localhost:8080` by default.
 
 ## Demo Credentials
 
-- Admin: `admin@eduerp.com` / `password123`
+- Admin: `rohithmannemofficial@gmail.com` / `password123`
 - Teacher: `deepika.rao@eduerp.com` / `password123`
 - Student: `sneha.kumar@eduerp.com` / `password123`
 

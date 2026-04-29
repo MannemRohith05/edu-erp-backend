@@ -1,8 +1,11 @@
 package com.eduerp.service;
 
 import com.eduerp.dto.AuthResponse;
+import com.eduerp.dto.EmailRequest;
+import com.eduerp.dto.LoginOtpResponse;
 import com.eduerp.dto.LoginRequest;
 import com.eduerp.dto.RegisterRequest;
+import com.eduerp.dto.VerifyOtpRequest;
 import com.eduerp.entity.Role;
 import com.eduerp.entity.Student;
 import com.eduerp.entity.Teacher;
@@ -17,6 +20,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.mail.MailException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +38,8 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final AuthenticationManager authenticationManager;
     private final UserDetailsService userDetailsService;
+    private final EmailService emailService;
+    private final OtpService otpService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -78,11 +84,35 @@ public class AuthService {
         return buildAuthResponse(savedUser, accessToken, refreshToken);
     }
 
-    public AuthResponse login(LoginRequest request) {
+    public LoginOtpResponse login(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.getEmail(),
                         request.getPassword()));
+
+        userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        String otp = otpService.createOtp(request.getEmail());
+        try {
+            emailService.sendEmail(EmailRequest.builder()
+                    .to(request.getEmail())
+                    .subject("EduERP Login OTP")
+                    .body("Your EduERP login OTP is " + otp + ". It expires in 5 minutes.")
+                    .build());
+        } catch (MailException ex) {
+            throw new IllegalArgumentException("Unable to send OTP email. Please check SMTP settings.");
+        }
+
+        return LoginOtpResponse.builder()
+                .message("OTP sent to your email")
+                .email(request.getEmail())
+                .expiresInSeconds(otpService.getExpirySeconds())
+                .build();
+    }
+
+    public AuthResponse verifyOtp(VerifyOtpRequest request) {
+        otpService.verifyOtp(request.getEmail(), request.getOtp());
 
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));

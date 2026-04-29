@@ -1,9 +1,11 @@
 package com.eduerp.controller;
 
 import com.eduerp.dto.AuthResponse;
+import com.eduerp.dto.LoginOtpResponse;
 import com.eduerp.dto.LoginRequest;
 import com.eduerp.dto.RegisterRequest;
 import com.eduerp.dto.UserResponse;
+import com.eduerp.dto.VerifyOtpRequest;
 import com.eduerp.service.AuthService;
 import com.eduerp.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,9 +33,15 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    @Operation(summary = "Login and get JWT token")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+    @Operation(summary = "Verify password and send login OTP")
+    public ResponseEntity<LoginOtpResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/verify-otp")
+    @Operation(summary = "Verify login OTP and get JWT token")
+    public ResponseEntity<AuthResponse> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        return ResponseEntity.ok(authService.verifyOtp(request));
     }
 
     @PostMapping("/refresh")

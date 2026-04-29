@@ -96,7 +96,7 @@ public class DataInitializer implements CommandLineRunner {
 
                 // ── 1. Admin ─────────────────────────────────────────────────────
                 userRepository.save(User.builder()
-                        .email("admin@eduerp.com").password(encodedPassword)
+                        .email("rohithmannemofficial@gmail.com").password(encodedPassword)
                         .firstName("System").lastName("Admin").role(Role.ADMIN).active(true).build());
 
                 // ── 2. Create Teachers (~50, spread across branches) ─────────────
@@ -393,7 +393,7 @@ public class DataInitializer implements CommandLineRunner {
                 }
                 log.info("═══════════════════════════════════════════════════════════");
                 log.info("   🔑 Login Credentials (all passwords: password123)");
-                log.info("   👤 Admin:    admin@eduerp.com");
+                log.info("   👤 Admin:    rohithmannemofficial@gmail.com");
                 log.info("   👨‍🏫 Teachers: {} accounts (e.g. {} )", totalTeachers,
                         branchTeachers.get("CSE").get(0).getUser().getEmail());
                 log.info("   🎓 Students: {} accounts (e.g. {} )", totalStudents,

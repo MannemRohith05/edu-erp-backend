@@ -4,6 +4,7 @@ import com.eduerp.entity.*;
 import com.eduerp.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,12 @@ import java.util.stream.Collectors;
 @Slf4j
 @SuppressWarnings("null")
 public class DataInitializer implements CommandLineRunner {
+
+        @Value("${app.data.demo-password:}")
+        private String demoPassword;
+
+        @Value("${app.data.demo-admin-email:admin@example.invalid}")
+        private String demoAdminEmail;
 
         private final UserRepository userRepository;
         private final StudentRepository studentRepository;
@@ -90,13 +97,18 @@ public class DataInitializer implements CommandLineRunner {
                         return;
                 }
 
+                if (demoPassword == null || demoPassword.isBlank()) {
+                        log.info("Demo data initialization is disabled. Existing database remains unchanged.");
+                        return;
+                }
+
                 log.info("🚀 Initializing large demo dataset (~500 users)...");
                 Random random = new Random(42);
-                String encodedPassword = passwordEncoder.encode("password123");
+                String encodedPassword = passwordEncoder.encode(demoPassword);
 
                 // ── 1. Admin ─────────────────────────────────────────────────────
                 userRepository.save(User.builder()
-                        .email("rohithmannemofficial@gmail.com").password(encodedPassword)
+                        .email(demoAdminEmail).password(encodedPassword)
                         .firstName("System").lastName("Admin").role(Role.ADMIN).active(true).build());
 
                 // ── 2. Create Teachers (~50, spread across branches) ─────────────
@@ -392,8 +404,7 @@ public class DataInitializer implements CommandLineRunner {
                                 branchCourses.get(branch).size());
                 }
                 log.info("═══════════════════════════════════════════════════════════");
-                log.info("   🔑 Login Credentials (all passwords: password123)");
-                log.info("   👤 Admin:    rohithmannemofficial@gmail.com");
+                log.info("   👤 Demo administrator initialized");
                 log.info("   👨‍🏫 Teachers: {} accounts (e.g. {} )", totalTeachers,
                         branchTeachers.get("CSE").get(0).getUser().getEmail());
                 log.info("   🎓 Students: {} accounts (e.g. {} )", totalStudents,

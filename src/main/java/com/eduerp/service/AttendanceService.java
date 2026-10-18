@@ -7,6 +7,7 @@ import com.eduerp.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -29,13 +30,15 @@ public class AttendanceService {
                 .collect(Collectors.toList());
     }
 
-    public List<AttendanceDTO> getAttendanceByCourseId(Long courseId) {
+    public List<AttendanceDTO> getAttendanceByCourseId(Long courseId, Long requesterId) {
+        ensureCourseAccess(courseId, requesterId);
         return attendanceRepository.findByCourseId(courseId).stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
-    public List<AttendanceDTO> getAttendanceByCourseIdAndDate(Long courseId, LocalDate date) {
+    public List<AttendanceDTO> getAttendanceByCourseIdAndDate(Long courseId, LocalDate date, Long requesterId) {
+        ensureCourseAccess(courseId, requesterId);
         return attendanceRepository.findByCourseIdAndDate(courseId, date).stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
@@ -58,6 +61,7 @@ public class AttendanceService {
 
         User markedBy = userRepository.findById(markedByUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + markedByUserId));
+        ensureTeacherOrAdministrator(markedBy, course);
 
         // Check if attendance already exists for this student, course, and date
         var existingAttendance = attendanceRepository.findByStudentIdAndCourseIdAndDate(
@@ -94,9 +98,12 @@ public class AttendanceService {
     }
 
     @Transactional
-    public AttendanceDTO updateAttendance(Long id, AttendanceDTO dto) {
+    public AttendanceDTO updateAttendance(Long id, AttendanceDTO dto, Long actingUserId) {
         Attendance attendance = attendanceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Attendance record not found with id: " + id));
+        User actingUser = userRepository.findById(actingUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + actingUserId));
+        ensureTeacherOrAdministrator(actingUser, attendance.getCourse());
 
         if (dto.getStatus() != null) {
             attendance.setStatus(dto.getStatus());
@@ -136,5 +143,26 @@ public class AttendanceService {
                 .remarks(attendance.getRemarks())
                 .markedAt(attendance.getMarkedAt())
                 .build();
+    }
+
+    private void ensureCourseAccess(Long courseId, Long requesterId) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + courseId));
+        User requester = userRepository.findById(requesterId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + requesterId));
+        ensureTeacherOrAdministrator(requester, course);
+    }
+
+    private void ensureTeacherOrAdministrator(User user, Course course) {
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.ADMINISTRATOR) {
+            return;
+        }
+        if (user.getRole() == Role.TEACHER
+                && course.getTeacher() != null
+                && course.getTeacher().getUser() != null
+                && user.getId().equals(course.getTeacher().getUser().getId())) {
+            return;
+        }
+        throw new AccessDeniedException("You are not authorized to access this course");
     }
 }

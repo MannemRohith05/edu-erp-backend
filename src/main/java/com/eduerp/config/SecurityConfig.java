@@ -43,7 +43,7 @@ public class SecurityConfig {
                                 "/api-docs/**",
                                 "/h2-console/**")
                         .permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "ADMINISTRATOR")
                         .requestMatchers("/api/teachers/**").hasAnyRole("ADMIN", "TEACHER", "ADMINISTRATOR")
                         .requestMatchers("/api/students/**").hasAnyRole("ADMIN", "TEACHER", "STUDENT", "ADMINISTRATOR")
                         .requestMatchers("/api/reports/**").hasAnyRole("ADMIN", "ADMINISTRATOR")

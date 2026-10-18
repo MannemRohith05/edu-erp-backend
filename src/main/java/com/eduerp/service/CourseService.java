@@ -48,6 +48,12 @@ public class CourseService {
                 .collect(Collectors.toList());
     }
 
+    public List<CourseDTO> getCoursesForTeacherUser(Long userId) {
+        return courseRepository.findByTeacherUserId(userId).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
     public List<CourseDTO> getCoursesByStudentId(Long studentId) {
         return courseRepository.findByStudentId(studentId).stream()
                 .map(this::mapToDTO)

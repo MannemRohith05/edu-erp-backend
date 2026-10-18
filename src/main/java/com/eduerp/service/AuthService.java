@@ -23,8 +23,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.mail.MailException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -40,19 +43,49 @@ public class AuthService {
     private final UserDetailsService userDetailsService;
     private final EmailService emailService;
     private final OtpService otpService;
+    private final Map<String, PendingRegistration> pendingRegistrations = new ConcurrentHashMap<>();
+
+    public LoginOtpResponse register(RegisterRequest request) {
+        Role requestedRole = publicRegistrationRole(request.getRole());
+        String email = request.getEmail().trim().toLowerCase();
+
+        if (userRepository.existsByEmail(email)) {
+            throw new IllegalArgumentException("Email already registered");
+        }
+
+        if (requestedRole == Role.TEACHER
+                && (!StringUtils.hasText(request.getEmployeeId()) || !StringUtils.hasText(request.getDepartment()))) {
+            throw new IllegalArgumentException("Employee ID and department are required for teacher registration");
+        }
+
+        pendingRegistrations.put(email, new PendingRegistration(request));
+        String otp = otpService.createOtp(email);
+        sendOtp(email, otp, "EduERP registration OTP");
+        return LoginOtpResponse.builder().message("Verification OTP sent to your email")
+                .email(email).expiresInSeconds(otpService.getExpirySeconds()).build();
+    }
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+    public AuthResponse verifyRegistration(VerifyOtpRequest request) {
+        String email = request.getEmail().trim().toLowerCase();
+        otpService.verifyOtp(email, request.getOtp());
+        PendingRegistration pending = pendingRegistrations.remove(email);
+        if (pending == null) {
+            throw new IllegalArgumentException("Registration expired. Please register again.");
+        }
+        RegisterRequest registration = pending.request();
+        Role requestedRole = publicRegistrationRole(registration.getRole());
+
+        if (userRepository.existsByEmail(email)) {
             throw new IllegalArgumentException("Email already registered");
         }
 
         User user = User.builder()
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .firstName(request.getFirstName())
-                .lastName(request.getLastName())
-                .role(request.getRole() != null ? request.getRole() : Role.STUDENT)
+                .email(email)
+                .password(passwordEncoder.encode(registration.getPassword()))
+                .firstName(registration.getFirstName())
+                .lastName(registration.getLastName())
+                .role(requestedRole)
                 .active(true)
                 .build();
 
@@ -68,10 +101,17 @@ public class AuthService {
                     .build();
             studentRepository.save(student);
         } else if (savedUser.getRole() == Role.TEACHER) {
+            String employeeId = StringUtils.hasText(registration.getEmployeeId())
+                    ? registration.getEmployeeId().trim()
+                    : "EMP2026" + String.format("%04d", savedUser.getId());
+            if (teacherRepository.existsByEmployeeId(employeeId)) {
+                throw new IllegalArgumentException("Employee ID already registered");
+            }
             Teacher teacher = Teacher.builder()
                     .user(savedUser)
-                    .employeeId("EMP2026" + String.format("%04d", savedUser.getId()))
-                    .department("CSE")
+                    .employeeId(employeeId)
+                    .department(StringUtils.hasText(registration.getDepartment())
+                            ? registration.getDepartment().trim() : "CSE")
                     .joiningDate(LocalDate.now())
                     .build();
             teacherRepository.save(teacher);
@@ -84,6 +124,14 @@ public class AuthService {
         return buildAuthResponse(savedUser, accessToken, refreshToken);
     }
 
+    private Role publicRegistrationRole(Role role) {
+        Role requestedRole = role == null ? Role.STUDENT : role;
+        if (requestedRole != Role.STUDENT && requestedRole != Role.TEACHER) {
+            throw new IllegalArgumentException("Public registration is limited to student or teacher accounts");
+        }
+        return requestedRole;
+    }
+
     public LoginOtpResponse login(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -93,23 +141,27 @@ public class AuthService {
         userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        String otp = otpService.createOtp(request.getEmail());
-        try {
-            emailService.sendEmail(EmailRequest.builder()
-                    .to(request.getEmail())
-                    .subject("EduERP Login OTP")
-                    .body("Your EduERP login OTP is " + otp + ". It expires in 5 minutes.")
-                    .build());
-        } catch (MailException ex) {
-            throw new IllegalArgumentException("Unable to send OTP email. Please check SMTP settings.");
-        }
+        String email = request.getEmail().trim().toLowerCase();
+        String otp = otpService.createOtp(email);
+        sendOtp(email, otp, "EduERP Login OTP");
 
         return LoginOtpResponse.builder()
                 .message("OTP sent to your email")
-                .email(request.getEmail())
+                .email(email)
                 .expiresInSeconds(otpService.getExpirySeconds())
                 .build();
     }
+
+    private void sendOtp(String email, String otp, String subject) {
+        try {
+            emailService.sendEmail(EmailRequest.builder().to(email).subject(subject)
+                    .body("Your EduERP verification code is " + otp + ". It expires in 5 minutes.").build());
+        } catch (MailException ex) {
+            throw new IllegalArgumentException("Unable to send verification email. Please check SMTP settings.");
+        }
+    }
+
+    private record PendingRegistration(RegisterRequest request) {}
 
     public AuthResponse verifyOtp(VerifyOtpRequest request) {
         otpService.verifyOtp(request.getEmail(), request.getOtp());

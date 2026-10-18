@@ -8,7 +8,7 @@ Spring Boot backend for the EduERP application. It provides authentication, user
 - Spring Boot 3.4
 - Spring Security with JWT
 - Spring Data JPA
-- H2 in-memory database
+- MySQL (`eduerp`) with JPA schema validation
 
 ## Run Locally
 
@@ -21,13 +21,13 @@ The API starts on `http://localhost:8080` by default.
 ## Environment Variables
 
 - `PORT`: Override the server port.
-- `CORS_ALLOWED_ORIGIN_PATTERNS`: Comma-separated allowed origin patterns for frontend hosts.
+- `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`: MySQL connection values; use `DB_URL=jdbc:mysql://localhost:3306/edu_erp`.
+- `JWT_SECRET`: required random signing secret; never commit it.
+- `JWT_EXPIRATION_MS`: access token lifetime; defaults to 900000 ms.
+- `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`: Gmail SMTP/App Password values used for OTP email.
+- `FRONTEND_URL`: allowed frontend origin.
 
-## Demo Credentials
-
-- Admin: `rohithmannemofficial@gmail.com` / `password123`
-- Teacher: `deepika.rao@eduerp.com` / `password123`
-- Student: `sneha.kumar@eduerp.com` / `password123`
+The default `DDL_AUTO=validate` does not create, alter, or delete tables. Flyway migrations are reviewed separately; verify the target `edu_erp` schema and Flyway history before starting.
 
 ## API Docs
 

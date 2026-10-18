@@ -9,6 +9,7 @@ import com.eduerp.repository.ScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.DayOfWeek;
 import java.util.List;
@@ -46,8 +47,20 @@ public class ScheduleService {
                 .collect(Collectors.toList());
     }
 
+    public List<ScheduleDTO> getSchedulesForTeacherUser(Long userId) {
+        return scheduleRepository.findByTeacherUserId(userId).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
     public List<ScheduleDTO> getSchedulesByStudentId(Long studentId) {
         return scheduleRepository.findByStudentId(studentId).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<ScheduleDTO> getSchedulesForStudentUser(Long userId) {
+        return scheduleRepository.findByStudentUserId(userId).stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
@@ -60,8 +73,14 @@ public class ScheduleService {
 
     @Transactional
     public ScheduleDTO createSchedule(ScheduleDTO dto) {
+        validateTimeRange(dto);
         Course course = courseRepository.findById(dto.getCourseId())
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + dto.getCourseId()));
+        if (course.getTeacher() == null) {
+            throw new IllegalArgumentException("Course must have an assigned teacher before scheduling");
+        }
+
+        validateConflicts(null, course, dto);
 
         Schedule schedule = Schedule.builder()
                 .course(course)
@@ -80,6 +99,24 @@ public class ScheduleService {
     public ScheduleDTO updateSchedule(Long id, ScheduleDTO dto) {
         Schedule schedule = scheduleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule not found with id: " + id));
+
+        Course course = schedule.getCourse();
+        if (dto.getCourseId() != null && !dto.getCourseId().equals(course.getId())) {
+            course = courseRepository.findById(dto.getCourseId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Course not found with id: " + dto.getCourseId()));
+            schedule.setCourse(course);
+        }
+        ScheduleDTO effective = ScheduleDTO.builder()
+                .dayOfWeek(dto.getDayOfWeek() != null ? dto.getDayOfWeek() : schedule.getDayOfWeek())
+                .startTime(dto.getStartTime() != null ? dto.getStartTime() : schedule.getStartTime())
+                .endTime(dto.getEndTime() != null ? dto.getEndTime() : schedule.getEndTime())
+                .room(dto.getRoom() != null ? dto.getRoom() : schedule.getRoom())
+                .build();
+        validateTimeRange(effective);
+        if (course.getTeacher() == null) {
+            throw new IllegalArgumentException("Course must have an assigned teacher before scheduling");
+        }
+        validateConflicts(id, course, effective);
 
         if (dto.getDayOfWeek() != null) {
             schedule.setDayOfWeek(dto.getDayOfWeek());
@@ -124,5 +161,42 @@ public class ScheduleService {
                 .room(schedule.getRoom())
                 .building(schedule.getBuilding())
                 .build();
+    }
+
+    private void validateTimeRange(ScheduleDTO dto) {
+        if (dto.getDayOfWeek() == null || dto.getStartTime() == null || dto.getEndTime() == null) {
+            throw new IllegalArgumentException("Day, start time, and end time are required");
+        }
+        if (!dto.getStartTime().isBefore(dto.getEndTime())) {
+            throw new IllegalArgumentException("Start time must be before end time");
+        }
+    }
+
+    private void validateConflicts(Long scheduleId, Course course, ScheduleDTO dto) {
+        for (Schedule existing : scheduleRepository.findAll()) {
+            if (scheduleId != null && scheduleId.equals(existing.getId())) {
+                continue;
+            }
+            if (existing.getDayOfWeek() != dto.getDayOfWeek()
+                    || !overlaps(existing.getStartTime(), existing.getEndTime(), dto.getStartTime(), dto.getEndTime())) {
+                continue;
+            }
+
+            boolean sameTeacher = course.getTeacher() != null && existing.getCourse().getTeacher() != null
+                    && course.getTeacher().getId().equals(existing.getCourse().getTeacher().getId());
+            boolean sameRoom = dto.getRoom() != null && !dto.getRoom().isBlank()
+                    && dto.getRoom().equalsIgnoreCase(existing.getRoom());
+            boolean sharedStudents = course.getEnrolledStudents().stream()
+                    .anyMatch(existing.getCourse().getEnrolledStudents()::contains);
+
+            if (sameTeacher || sameRoom || sharedStudents) {
+                throw new IllegalArgumentException("Schedule conflicts with an existing teacher, classroom, or student group");
+            }
+        }
+    }
+
+    private boolean overlaps(java.time.LocalTime startA, java.time.LocalTime endA,
+                             java.time.LocalTime startB, java.time.LocalTime endB) {
+        return startA.isBefore(endB) && startB.isBefore(endA);
     }
 }

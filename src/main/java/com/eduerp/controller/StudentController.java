@@ -61,16 +61,15 @@ public class StudentController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')")
     @Operation(summary = "Create new student")
     public ResponseEntity<StudentDTO> createStudent(
-            @RequestBody StudentDTO dto,
-            @RequestParam String password) {
-        return ResponseEntity.ok(studentService.createStudent(dto, password));
+            @RequestBody StudentDTO dto) {
+        return ResponseEntity.ok(studentService.createStudent(dto, dto.getPassword()));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')")
     @Operation(summary = "Update student")
     public ResponseEntity<StudentDTO> updateStudent(
             @PathVariable Long id,
@@ -79,7 +78,7 @@ public class StudentController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')")
     @Operation(summary = "Delete student (deactivate)")
     public ResponseEntity<Void> deleteStudent(@PathVariable Long id) {
         studentService.deleteStudent(id);

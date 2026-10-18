@@ -24,6 +24,7 @@ public class GradeDTO {
     private Double percentage;
     private String gradeType;
     private String letterGrade;
+    private Boolean published;
     private String feedback;
     private LocalDateTime gradedAt;
 }

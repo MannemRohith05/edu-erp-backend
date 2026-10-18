@@ -29,4 +29,8 @@ public class RegisterRequest {
     private String lastName;
 
     private Role role;
+
+    private String employeeId;
+
+    private String department;
 }

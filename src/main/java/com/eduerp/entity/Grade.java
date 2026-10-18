@@ -44,6 +44,10 @@ public class Grade {
 
     private String letterGrade; // A, B, C, D, F
 
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean published = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "graded_by")
     private User gradedBy;

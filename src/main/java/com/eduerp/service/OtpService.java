@@ -11,13 +11,20 @@ import java.util.concurrent.ConcurrentHashMap;
 public class OtpService {
 
     private static final int OTP_EXPIRY_SECONDS = 300;
+    private static final int RESEND_COOLDOWN_SECONDS = 60;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final Map<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
 
     public String createOtp(String email) {
+        String key = normalize(email);
+        OtpEntry existing = otpStore.get(key);
+        if (existing != null && existing.createdAt().plusSeconds(RESEND_COOLDOWN_SECONDS).isAfter(Instant.now())) {
+            throw new IllegalArgumentException("Please wait before requesting another OTP");
+        }
         String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
-        otpStore.put(normalize(email), new OtpEntry(otp, Instant.now().plusSeconds(OTP_EXPIRY_SECONDS)));
+        Instant now = Instant.now();
+        otpStore.put(key, new OtpEntry(otp, now.plusSeconds(OTP_EXPIRY_SECONDS), now));
         return otp;
     }
 
@@ -45,6 +52,6 @@ public class OtpService {
         return email.trim().toLowerCase();
     }
 
-    private record OtpEntry(String otp, Instant expiresAt) {
+    private record OtpEntry(String otp, Instant expiresAt, Instant createdAt) {
     }
 }

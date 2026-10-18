@@ -12,13 +12,15 @@ import java.util.List;
 public interface GradeRepository extends JpaRepository<Grade, Long> {
     List<Grade> findByStudentId(Long studentId);
 
+    List<Grade> findByStudentIdAndPublishedTrue(Long studentId);
+
     List<Grade> findByCourseId(Long courseId);
 
     List<Grade> findByStudentIdAndCourseId(Long studentId, Long courseId);
 
     List<Grade> findByGradeType(String gradeType);
 
-    @Query("SELECT AVG(g.marks / g.totalMarks * 100) FROM Grade g WHERE g.student.id = :studentId")
+    @Query("SELECT AVG(g.marks / g.totalMarks * 100) FROM Grade g WHERE g.student.id = :studentId AND g.published = true")
     Double getAveragePercentageByStudentId(@Param("studentId") Long studentId);
 
     @Query("SELECT AVG(g.marks / g.totalMarks * 100) FROM Grade g WHERE g.student.id = :studentId AND g.course.id = :courseId")

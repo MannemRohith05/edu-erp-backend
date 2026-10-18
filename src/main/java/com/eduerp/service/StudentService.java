@@ -63,6 +63,9 @@ public class StudentService {
 
     @Transactional
     public StudentDTO createStudent(StudentDTO dto, String password) {
+        if (password == null || password.length() < 6) {
+            throw new IllegalArgumentException("Password must be at least 6 characters");
+        }
         if (studentRepository.existsByStudentId(dto.getStudentId())) {
             throw new IllegalArgumentException("Student ID already exists");
         }

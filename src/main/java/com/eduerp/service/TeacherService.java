@@ -57,6 +57,9 @@ public class TeacherService {
 
     @Transactional
     public TeacherDTO createTeacher(TeacherDTO dto, String password) {
+        if (password == null || password.length() < 6) {
+            throw new IllegalArgumentException("Password must be at least 6 characters");
+        }
         if (teacherRepository.existsByEmployeeId(dto.getEmployeeId())) {
             throw new IllegalArgumentException("Employee ID already exists");
         }

@@ -29,18 +29,21 @@ public class TeacherController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')")
     @Operation(summary = "Get teacher by ID")
     public ResponseEntity<TeacherDTO> getTeacherById(@PathVariable Long id) {
         return ResponseEntity.ok(teacherService.getTeacherById(id));
     }
 
     @GetMapping("/employee/{employeeId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')")
     @Operation(summary = "Get teacher by employee ID")
     public ResponseEntity<TeacherDTO> getTeacherByEmployeeId(@PathVariable String employeeId) {
         return ResponseEntity.ok(teacherService.getTeacherByEmployeeId(employeeId));
     }
 
     @GetMapping("/user/{userId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')")
     @Operation(summary = "Get teacher by user ID")
     public ResponseEntity<TeacherDTO> getTeacherByUserId(@PathVariable Long userId) {
         return ResponseEntity.ok(teacherService.getTeacherByUserId(userId));
@@ -54,16 +57,15 @@ public class TeacherController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')")
     @Operation(summary = "Create new teacher")
     public ResponseEntity<TeacherDTO> createTeacher(
-            @RequestBody TeacherDTO dto,
-            @RequestParam String password) {
-        return ResponseEntity.ok(teacherService.createTeacher(dto, password));
+            @RequestBody TeacherDTO dto) {
+        return ResponseEntity.ok(teacherService.createTeacher(dto, dto.getPassword()));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')")
     @Operation(summary = "Update teacher")
     public ResponseEntity<TeacherDTO> updateTeacher(
             @PathVariable Long id,
@@ -72,7 +74,7 @@ public class TeacherController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')")
     @Operation(summary = "Delete teacher (deactivate)")
     public ResponseEntity<Void> deleteTeacher(@PathVariable Long id) {
         teacherService.deleteTeacher(id);

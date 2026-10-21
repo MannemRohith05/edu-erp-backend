@@ -28,6 +28,20 @@ public class FeePayment {
     @Column(name = "idempotency_key", nullable = false, unique = true, length = 120)
     private String idempotencyKey;
     private LocalDateTime confirmedAt;
+    @Column(length = 30)
+    private String provider;
+    @Column(name = "provider_order_id", length = 120, unique = true)
+    private String providerOrderId;
+    @Column(name = "provider_payment_id", length = 120, unique = true)
+    private String providerPaymentId;
+    @Column(name = "mobile_number", length = 20)
+    private String mobileNumber;
+    @Column(name = "provider_signature", length = 255)
+    private String providerSignature;
+    @Column(name = "failure_code", length = 120)
+    private String failureCode;
+    @Column(name = "refunded_amount", nullable = false, precision = 12, scale = 2)
+    @Builder.Default private BigDecimal refundedAmount = BigDecimal.ZERO;
     @PrePersist
     void onCreate() { paidAt = LocalDateTime.now(); }
 }

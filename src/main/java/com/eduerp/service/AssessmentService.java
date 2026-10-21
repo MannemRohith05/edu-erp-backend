@@ -1,0 +1,27 @@
+package com.eduerp.service;
+
+import com.eduerp.dto.AssessmentDTO;
+import com.eduerp.entity.*;
+import com.eduerp.exception.ResourceNotFoundException;
+import com.eduerp.repository.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service @RequiredArgsConstructor
+public class AssessmentService {
+    private final AssessmentRepository assessments; private final CourseRepository courses; private final UserRepository users; private final GradeRepository grades;
+    @Autowired(required = false) private AuditService auditService;
+    @Transactional public AssessmentDTO create(AssessmentDTO dto, Long teacherUserId) { Course course = courses.findById(dto.getCourseId()).orElseThrow(() -> new ResourceNotFoundException("Course not found")); User teacher = users.findById(teacherUserId).orElseThrow(() -> new ResourceNotFoundException("User not found")); ensureTeacher(teacher, course); if (dto.getTitle() == null || dto.getTitle().isBlank() || dto.getMaxMarks() == null || dto.getMaxMarks().signum() <= 0 || dto.getWeightage() == null || dto.getWeightage().signum() <= 0 || dto.getWeightage().compareTo(BigDecimal.valueOf(100)) > 0) throw new IllegalArgumentException("Assessment title, positive maximum marks and weightage up to 100 are required"); Assessment saved = assessments.save(Assessment.builder().course(course).title(dto.getTitle().trim()).assessmentType(dto.getAssessmentType()).academicYear(dto.getAcademicYear()).semester(dto.getSemester()).deadline(dto.getDeadline()).maxMarks(dto.getMaxMarks()).weightage(dto.getWeightage()).createdBy(teacher).build()); audit(teacher, "ASSESSMENT_CREATED", "ASSESSMENT", saved.getId(), saved.getTitle()); return map(saved); }
+    @Transactional(readOnly = true) public List<AssessmentDTO> byCourse(Long courseId, Long requesterId) { Course c = courses.findById(courseId).orElseThrow(() -> new ResourceNotFoundException("Course not found")); User u = users.findById(requesterId).orElseThrow(() -> new ResourceNotFoundException("User not found")); ensureTeacherOrAdmin(u, c); return assessments.findByCourseId(courseId).stream().map(this::map).toList(); }
+    @Transactional public AssessmentDTO transition(Long id, AssessmentStatus next, Long actingUserId) { Assessment a = assessments.findById(id).orElseThrow(() -> new ResourceNotFoundException("Assessment not found")); User u = users.findById(actingUserId).orElseThrow(() -> new ResourceNotFoundException("User not found")); ensureTeacherOrAdmin(u, a.getCourse()); if (next == AssessmentStatus.SUBMITTED && a.getStatus() != AssessmentStatus.DRAFT) throw new IllegalArgumentException("Only draft assessments can be submitted"); if (next == AssessmentStatus.SUBMITTED && grades.findByAssessmentId(id).size() < a.getCourse().getEnrolledStudents().size()) throw new IllegalArgumentException("Marks are required for every enrolled student before submission"); if (next == AssessmentStatus.APPROVED && u.getRole() != Role.ADMIN && u.getRole() != Role.ADMINISTRATOR) throw new AccessDeniedException("Administrator approval of submitted marks is required"); if (next == AssessmentStatus.APPROVED && a.getStatus() != AssessmentStatus.SUBMITTED) throw new IllegalArgumentException("Only submitted assessments can be approved"); if (next == AssessmentStatus.PUBLISHED && a.getStatus() != AssessmentStatus.APPROVED) throw new IllegalArgumentException("Assessment must be approved before publication"); a.setStatus(next); if (next == AssessmentStatus.SUBMITTED) { a.setSubmittedAt(LocalDateTime.now()); grades.findByAssessmentId(id).forEach(g -> { g.setWorkflowStatus("SUBMITTED"); grades.save(g); }); } if (next == AssessmentStatus.APPROVED) { a.setApprovedAt(LocalDateTime.now()); a.setApprovedBy(u); grades.findByAssessmentId(id).forEach(g -> { g.setWorkflowStatus("APPROVED"); grades.save(g); }); } if (next == AssessmentStatus.PUBLISHED) grades.findByAssessmentId(id).forEach(g -> { g.setPublished(true); g.setWorkflowStatus("PUBLISHED"); grades.save(g); }); Assessment saved = assessments.save(a); audit(u, "ASSESSMENT_" + next, "ASSESSMENT", id, null); return map(saved); }
+    private void ensureTeacher(User u, Course c) { if (u.getRole() != Role.TEACHER || c.getTeacher() == null || !u.getId().equals(c.getTeacher().getUser().getId())) throw new AccessDeniedException("Only the assigned teacher may manage assessments"); }
+    private void ensureTeacherOrAdmin(User u, Course c) { if (u.getRole() == Role.ADMIN || u.getRole() == Role.ADMINISTRATOR) return; ensureTeacher(u, c); }
+    private AssessmentDTO map(Assessment a) { AssessmentDTO d = new AssessmentDTO(); d.setId(a.getId()); d.setCourseId(a.getCourse().getId()); d.setCourseName(a.getCourse().getCourseName()); d.setTitle(a.getTitle()); d.setAssessmentType(a.getAssessmentType()); d.setAcademicYear(a.getAcademicYear()); d.setSemester(a.getSemester()); d.setDeadline(a.getDeadline()); d.setMaxMarks(a.getMaxMarks()); d.setWeightage(a.getWeightage()); d.setStatus(a.getStatus()); d.setSubmittedAt(a.getSubmittedAt()); d.setApprovedAt(a.getApprovedAt()); return d; }
+    private void audit(User user, String action, String type, Long id, String details) { if (auditService != null) auditService.record(user, action, type, id, details); }
+}

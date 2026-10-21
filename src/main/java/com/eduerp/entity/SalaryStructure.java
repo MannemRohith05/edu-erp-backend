@@ -13,7 +13,9 @@ public class SalaryStructure {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "teacher_id", nullable = false) private Teacher teacher;
     @Column(nullable = false, precision = 12, scale = 2) private BigDecimal grossSalary;
+    @Column(nullable = false, precision = 12, scale = 2) @Builder.Default private BigDecimal basicSalary = BigDecimal.ZERO;
     @Column(nullable = false, precision = 12, scale = 2) @Builder.Default private BigDecimal allowances = BigDecimal.ZERO;
+    @Column(nullable = false, precision = 12, scale = 2) @Builder.Default private BigDecimal bonuses = BigDecimal.ZERO;
     @Column(nullable = false, precision = 12, scale = 2) @Builder.Default private BigDecimal deductions = BigDecimal.ZERO;
     @Column(nullable = false, length = 20) private String paymentFrequency;
     @Column(nullable = false) private LocalDate effectiveDate;

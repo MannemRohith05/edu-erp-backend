@@ -79,6 +79,27 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
 
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex) {
+        ErrorResponse error = new ErrorResponse(HttpStatus.CONFLICT.value(), ex.getMessage(), LocalDateTime.now());
+        return new ResponseEntity<>(error, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(PaymentProviderException.class)
+    public ResponseEntity<ErrorResponse> handlePaymentProvider(PaymentProviderException ex) {
+        if ("CONFIGURATION_MISSING".equals(ex.getProviderCode())) {
+            ErrorResponse error = new ErrorResponse(HttpStatus.SERVICE_UNAVAILABLE.value(),
+                    "Razorpay Test Mode credentials are not configured on the backend.", LocalDateTime.now());
+            return new ResponseEntity<>(error, HttpStatus.SERVICE_UNAVAILABLE);
+        }
+        String message = ex.getProviderCode() == null
+                ? "Payment provider rejected the order. Please retry or contact finance."
+                : "Payment provider rejected the order (" + ex.getProviderCode() + "). Please retry or contact finance.";
+        ErrorResponse error = new ErrorResponse(HttpStatus.BAD_GATEWAY.value(), message, LocalDateTime.now());
+        return new ResponseEntity<>(error, HttpStatus.BAD_GATEWAY);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         ErrorResponse error = new ErrorResponse(
@@ -90,4 +111,5 @@ public class GlobalExceptionHandler {
 
     public record ErrorResponse(int status, String message, LocalDateTime timestamp) {
     }
+
 }

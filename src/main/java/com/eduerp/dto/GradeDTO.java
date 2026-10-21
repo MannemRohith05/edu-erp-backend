@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class GradeDTO {
     private Long id;
+    private Long assessmentId;
     private Long studentId;
     private String studentName;
     private String studentCode;
@@ -25,6 +26,8 @@ public class GradeDTO {
     private String gradeType;
     private String letterGrade;
     private Boolean published;
+    private String workflowStatus;
     private String feedback;
+    private String correctionReason;
     private LocalDateTime gradedAt;
 }

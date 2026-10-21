@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
@@ -27,9 +28,14 @@ public class GradeService {
     private final StudentRepository studentRepository;
     private final CourseRepository courseRepository;
     private final UserRepository userRepository;
+    @Autowired private AssessmentRepository assessmentRepository;
+    @Autowired private GradeCorrectionHistoryRepository correctionHistoryRepository;
+    @Autowired(required = false) private AuditService auditService;
 
     @Value("${app.academic.grade-points:A+=10,A=9,B=8,C=7,D=6,F=0}")
     private String gradePointConfig;
+    @Value("${app.academic.grade-boundaries:A+=90,A=80,B=70,C=60,D=50,F=0}")
+    private String gradeBoundaryConfig;
 
     public List<GradeDTO> getGradesByStudentId(Long studentId) {
         return gradeRepository.findByStudentIdAndPublishedTrue(studentId).stream()
@@ -99,12 +105,24 @@ public class GradeService {
         User gradedBy = userRepository.findById(gradedByUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + gradedByUserId));
         ensureTeacherOrAdministrator(gradedBy, course);
+        if (student.getCourses() != null && !student.getCourses().contains(course)) {
+            throw new IllegalArgumentException("Student is not enrolled in this course");
+        }
 
+        Assessment assessment = null;
+        if (dto.getAssessmentId() != null) {
+            assessment = assessmentRepository.findById(dto.getAssessmentId()).orElseThrow(() -> new ResourceNotFoundException("Assessment not found"));
+            if (!assessment.getCourse().getId().equals(course.getId())) throw new IllegalArgumentException("Assessment does not belong to this course");
+            if (dto.getTotalMarks() > assessment.getMaxMarks().doubleValue()) throw new IllegalArgumentException("Marks maximum exceeds assessment maximum");
+            if (assessment.getStatus() != AssessmentStatus.DRAFT) throw new IllegalArgumentException("Marks can only be entered for draft assessments");
+            if (gradeRepository.findByAssessmentIdAndStudentId(assessment.getId(), student.getId()).isPresent()) throw new IllegalArgumentException("A mark already exists for this student and assessment");
+        }
         String letterGrade = calculateLetterGrade(dto.getMarks(), dto.getTotalMarks());
 
         Grade grade = Grade.builder()
                 .student(student)
                 .course(course)
+                .assessment(assessment)
                 .assignmentName(dto.getAssignmentName())
                 .marks(dto.getMarks())
                 .totalMarks(dto.getTotalMarks())
@@ -112,10 +130,13 @@ public class GradeService {
                 .letterGrade(letterGrade)
                 .feedback(dto.getFeedback())
                 .gradedBy(gradedBy)
+                .workflowStatus(assessment == null ? "PUBLISHED" : "DRAFT")
+                .published(assessment == null)
                 .gradedAt(LocalDateTime.now())
                 .build();
 
         Grade savedGrade = gradeRepository.save(grade);
+        audit(gradedBy, "GRADE_DRAFT_SAVED", "GRADE", savedGrade.getId(), "assessment=" + dto.getAssessmentId());
         return mapToDTO(savedGrade);
     }
 
@@ -126,6 +147,7 @@ public class GradeService {
         User actingUser = userRepository.findById(actingUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + actingUserId));
         ensureTeacherOrAdministrator(actingUser, grade.getCourse());
+        if (Boolean.TRUE.equals(grade.getPublished()) || "PUBLISHED".equals(grade.getWorkflowStatus()) || "APPROVED".equals(grade.getWorkflowStatus())) throw new IllegalArgumentException("Published or approved grades require a correction workflow");
 
         if (dto.getMarks() != null) {
             grade.setMarks(dto.getMarks());
@@ -134,6 +156,7 @@ public class GradeService {
             grade.setTotalMarks(dto.getTotalMarks());
         }
         validateMarks(grade.getMarks(), grade.getTotalMarks());
+        if (grade.getAssessment() != null && grade.getTotalMarks() > grade.getAssessment().getMaxMarks().doubleValue()) throw new IllegalArgumentException("Marks maximum exceeds assessment maximum");
         if (dto.getFeedback() != null) {
             grade.setFeedback(dto.getFeedback());
         }
@@ -142,6 +165,7 @@ public class GradeService {
         grade.setLetterGrade(calculateLetterGrade(grade.getMarks(), grade.getTotalMarks()));
 
         Grade updatedGrade = gradeRepository.save(grade);
+        audit(actingUser, "GRADE_UPDATED", "GRADE", id, null);
         return mapToDTO(updatedGrade);
     }
 
@@ -152,7 +176,9 @@ public class GradeService {
         User actingUser = userRepository.findById(actingUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + actingUserId));
         ensureTeacherOrAdministrator(actingUser, grade.getCourse());
+        if (Boolean.TRUE.equals(grade.getPublished()) || "PUBLISHED".equals(grade.getWorkflowStatus())) throw new IllegalArgumentException("Published grades cannot be deleted");
         gradeRepository.deleteById(id);
+        audit(actingUser, "GRADE_DELETED", "GRADE", id, null);
     }
 
     private String calculateLetterGrade(Double marks, Double totalMarks) {
@@ -160,22 +186,17 @@ public class GradeService {
             return "N/A";
         double percentage = (marks / totalMarks) * 100;
 
-        if (percentage >= 90)
-            return "A+";
-        if (percentage >= 80)
-            return "A";
-        if (percentage >= 70)
-            return "B";
-        if (percentage >= 60)
-            return "C";
-        if (percentage >= 50)
-            return "D";
+        for (String rule : gradeBoundaryConfig.split(",")) {
+            String[] pair = rule.split("=", 2);
+            if (pair.length == 2 && percentage >= Double.parseDouble(pair[1].trim())) return pair[0].trim();
+        }
         return "F";
     }
 
     private GradeDTO mapToDTO(Grade grade) {
         return GradeDTO.builder()
                 .id(grade.getId())
+                .assessmentId(grade.getAssessment() == null ? null : grade.getAssessment().getId())
                 .studentId(grade.getStudent().getId())
                 .studentName(grade.getStudent().getUser().getFullName())
                 .studentCode(grade.getStudent().getStudentId())
@@ -188,6 +209,7 @@ public class GradeService {
                 .gradeType(grade.getGradeType())
                 .letterGrade(grade.getLetterGrade())
                 .published(grade.getPublished())
+                .workflowStatus(grade.getWorkflowStatus())
                 .feedback(grade.getFeedback())
                 .gradedAt(grade.getGradedAt())
                 .build();
@@ -204,7 +226,26 @@ public class GradeService {
         Grade grade = gradeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Grade not found with id: " + id));
         grade.setPublished(true);
+        grade.setWorkflowStatus("PUBLISHED");
         return mapToDTO(gradeRepository.save(grade));
+    }
+
+    @Transactional
+    public GradeDTO correctPublishedGrade(Long id, GradeDTO dto, Long actingUserId) {
+        Grade grade = gradeRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Grade not found with id: " + id));
+        User actor = userRepository.findById(actingUserId).orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + actingUserId));
+        ensureTeacherOrAdministrator(actor, grade.getCourse());
+        if (!Boolean.TRUE.equals(grade.getPublished())) throw new IllegalArgumentException("Only published grades use the correction workflow");
+        if (dto.getCorrectionReason() == null || dto.getCorrectionReason().isBlank()) throw new IllegalArgumentException("A correction reason is required");
+        if (dto.getMarks() == null) throw new IllegalArgumentException("Corrected marks are required");
+        validateMarks(dto.getMarks(), grade.getTotalMarks());
+        correctionHistoryRepository.save(GradeCorrectionHistory.builder().grade(grade).changedBy(actor)
+                .oldMarks(java.math.BigDecimal.valueOf(grade.getMarks())).newMarks(java.math.BigDecimal.valueOf(dto.getMarks()))
+                .reason(dto.getCorrectionReason().trim()).build());
+        grade.setMarks(dto.getMarks()); grade.setLetterGrade(calculateLetterGrade(dto.getMarks(), grade.getTotalMarks())); grade.setGradedBy(actor); grade.setGradedAt(LocalDateTime.now());
+        Grade saved = gradeRepository.save(grade);
+        audit(actor, "PUBLISHED_GRADE_CORRECTED", "GRADE", id, dto.getCorrectionReason().trim());
+        return mapToDTO(saved);
     }
 
     private Map<String, BigDecimal> parseGradePoints() {
@@ -238,5 +279,9 @@ public class GradeService {
             return;
         }
         throw new AccessDeniedException("You are not authorized to access this course");
+    }
+
+    private void audit(User actor, String action, String type, Long id, String details) {
+        if (auditService != null) auditService.record(actor, action, type, id, details);
     }
 }

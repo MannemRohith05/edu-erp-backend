@@ -1,0 +1,20 @@
+CREATE TABLE payment_otp_challenges (
+    id CHAR(36) NOT NULL,
+    user_id BIGINT NOT NULL,
+    invoice_id BIGINT NOT NULL,
+    mobile_number VARCHAR(20) NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    otp_hash VARCHAR(128) NOT NULL,
+    otp_salt VARCHAR(64) NOT NULL,
+    verification_token_hash VARCHAR(128) NULL,
+    expires_at DATETIME(6) NOT NULL,
+    resend_available_at DATETIME(6) NOT NULL,
+    attempts INT NOT NULL DEFAULT 0,
+    verified_at DATETIME(6) NULL,
+    consumed_at DATETIME(6) NULL,
+    created_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_payment_otp_user FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_payment_otp_invoice FOREIGN KEY (invoice_id) REFERENCES fee_invoices (id),
+    INDEX ix_payment_otp_user_mobile_created (user_id, mobile_number, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

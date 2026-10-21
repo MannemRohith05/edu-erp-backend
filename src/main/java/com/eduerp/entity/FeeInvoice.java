@@ -22,6 +22,10 @@ public class FeeInvoice {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
     @Column(nullable = false, precision = 12, scale = 2)
+    @Builder.Default private BigDecimal subtotal = BigDecimal.ZERO;
+    @Column(name = "tax_total", nullable = false, precision = 12, scale = 2)
+    @Builder.Default private BigDecimal taxTotal = BigDecimal.ZERO;
+    @Column(nullable = false, precision = 12, scale = 2)
     @Builder.Default private BigDecimal adjustment = BigDecimal.ZERO;
     @Column(nullable = false)
     private LocalDate dueDate;

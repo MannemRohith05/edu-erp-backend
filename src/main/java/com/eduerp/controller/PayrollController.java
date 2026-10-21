@@ -10,8 +10,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 @RestController @RequestMapping("/api/payroll") @RequiredArgsConstructor
 public class PayrollController {
@@ -20,9 +23,17 @@ public class PayrollController {
     @PostMapping("/structures") @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')") public SalaryStructureDTO configure(@RequestBody SalaryStructureDTO dto, @AuthenticationPrincipal UserDetails d) { return service.configure(dto, current(d).getId()); }
     @GetMapping("/structures/me") @PreAuthorize("hasRole('TEACHER')") public List<SalaryStructureDTO> myStructures(@AuthenticationPrincipal UserDetails d) { return service.myStructures(teacher(d).getId()); }
     @GetMapping("/records") @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')") public List<PayrollRecordDTO> records() { return service.allPayroll(); }
+    @GetMapping("/dashboard") @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')") public PayrollDashboardDTO dashboard() { return service.dashboard(); }
     @PostMapping("/records/generate") @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')") public PayrollRecordDTO generate(@RequestParam Long teacherId, @RequestParam Integer year, @RequestParam Integer month, @AuthenticationPrincipal UserDetails d) { return service.generate(teacherId, year, month, current(d).getId()); }
+    @PostMapping("/records/{id}/approve") @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')") public PayrollRecordDTO approve(@PathVariable Long id, @AuthenticationPrincipal UserDetails d) { return service.approve(id, current(d).getId()); }
+    @PostMapping("/records/{id}/pay") @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')") public PayrollRecordDTO pay(@PathVariable Long id, @Valid @RequestBody PayrollPaymentRequest request, @AuthenticationPrincipal UserDetails d) { return service.recordExternalPayment(id, request, current(d).getId()); }
     @PutMapping("/records/{id}") @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR')") public PayrollRecordDTO update(@PathVariable Long id, @RequestBody PayrollRecordDTO dto, @AuthenticationPrincipal UserDetails d) { return service.updateStatus(id, dto.getStatus(), dto.getPaymentDate(), dto.getPaymentReference(), dto.getPayslipReference(), current(d).getId()); }
     @GetMapping("/records/me") @PreAuthorize("hasRole('TEACHER')") public List<PayrollRecordDTO> myRecords(@AuthenticationPrincipal UserDetails d) { return service.myPayroll(teacher(d).getId()); }
+    @GetMapping(value = "/records/{id}/payslip", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'ADMINISTRATOR', 'TEACHER')")
+    public ResponseEntity<byte[]> payslip(@PathVariable Long id, @AuthenticationPrincipal UserDetails d) {
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).body(service.payslip(id, current(d)));
+    }
     private User current(UserDetails d) { return users.findByEmail(d.getUsername()).orElseThrow(); }
     private Teacher teacher(UserDetails d) { return teachers.findByUserId(current(d).getId()).orElseThrow(); }
 }

@@ -114,6 +114,14 @@ public class GradeController {
         return ResponseEntity.ok(gradeService.updateGrade(id, dto, user.getId()));
     }
 
+    @PostMapping("/{id}/correction")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER', 'ADMINISTRATOR')")
+    public ResponseEntity<GradeDTO> correct(@PathVariable Long id, @RequestBody GradeDTO dto,
+                                            @AuthenticationPrincipal UserDetails userDetails) {
+        User user = userRepository.findByEmail(userDetails.getUsername()).orElseThrow();
+        return ResponseEntity.ok(gradeService.correctPublishedGrade(id, dto, user.getId()));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER', 'ADMINISTRATOR')")
     @Operation(summary = "Delete a grade")

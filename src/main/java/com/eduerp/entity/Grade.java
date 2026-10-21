@@ -19,6 +19,7 @@ public class Grade {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "assessment_id") private Assessment assessment;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)
@@ -47,6 +48,11 @@ public class Grade {
     @Column(nullable = false)
     @Builder.Default
     private Boolean published = false;
+    @Column(name = "workflow_status", nullable = false, length = 20)
+    @Builder.Default private String workflowStatus = "PUBLISHED";
+    private LocalDateTime submittedAt;
+    private LocalDateTime approvedAt;
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "approved_by") private User approvedBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "graded_by")

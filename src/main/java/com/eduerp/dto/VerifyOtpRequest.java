@@ -19,6 +19,6 @@ public class VerifyOtpRequest {
     private String email;
 
     @NotBlank(message = "OTP is required")
-    @Pattern(regexp = "\\d{6}", message = "OTP must be 6 digits")
+    @Pattern(regexp = "\\d{4,8}", message = "OTP must contain 4 to 8 digits")
     private String otp;
 }

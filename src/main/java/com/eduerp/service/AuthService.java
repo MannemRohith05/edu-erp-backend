@@ -155,7 +155,8 @@ public class AuthService {
     private void sendOtp(String email, String otp, String subject) {
         try {
             emailService.sendEmail(EmailRequest.builder().to(email).subject(subject)
-                    .body("Your EduERP verification code is " + otp + ". It expires in 5 minutes.").build());
+                    .body("Your EduERP verification code is " + otp + ". It expires in "
+                            + (otpService.getExpirySeconds() / 60) + " minutes.").build());
         } catch (MailException ex) {
             throw new IllegalArgumentException("Unable to send verification email. Please check SMTP settings.");
         }

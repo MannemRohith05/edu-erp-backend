@@ -19,6 +19,8 @@ public interface GradeRepository extends JpaRepository<Grade, Long> {
     List<Grade> findByStudentIdAndCourseId(Long studentId, Long courseId);
 
     List<Grade> findByGradeType(String gradeType);
+    List<Grade> findByAssessmentId(Long assessmentId);
+    java.util.Optional<Grade> findByAssessmentIdAndStudentId(Long assessmentId, Long studentId);
 
     @Query("SELECT AVG(g.marks / g.totalMarks * 100) FROM Grade g WHERE g.student.id = :studentId AND g.published = true")
     Double getAveragePercentageByStudentId(@Param("studentId") Long studentId);

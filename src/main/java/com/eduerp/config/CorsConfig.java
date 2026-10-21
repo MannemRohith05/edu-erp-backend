@@ -1,3 +1,4 @@
+
 package com.eduerp.config;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -14,26 +15,46 @@ import java.util.stream.Collectors;
 @Configuration
 public class CorsConfig {
 
-    @Value("${cors.allowed-origin-patterns}")
+    @Value("${cors.allowed-origin-patterns:http://localhost:5173,http://localhost:5174,http://localhost:5175}")
     private String allowedOriginPatterns;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        List<String> originPatterns = Arrays.stream(allowedOriginPatterns.split(","))
+
+        List<String> originPatterns = Arrays.stream(
+                        allowedOriginPatterns.split(","))
                 .map(String::trim)
                 .filter(pattern -> !pattern.isEmpty())
                 .collect(Collectors.toList());
 
         configuration.setAllowedOriginPatterns(originPatterns);
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
-        configuration.setExposedHeaders(List.of("Authorization"));
+
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE",
+                "PATCH", "OPTIONS"
+        ));
+
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With",
+                "Accept",
+                "Origin"
+        ));
+
+        configuration.setExposedHeaders(
+                List.of("Authorization")
+        );
+
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
         source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
 }
